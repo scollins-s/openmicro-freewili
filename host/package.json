@@ -1,0 +1,81 @@
+{
+  "name": "openmicro",
+  "version": "1.3.0",
+  "description": "Open-source replica of Work Louder's Codex Micro using a consumer gamepad as the physical AI-agent controller.",
+  "license": "MIT",
+  "author": "stephenleo",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stephenleo/OpenMicro.git"
+  },
+  "type": "module",
+  "bin": {
+    "openmicro": "dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/cli.d.ts",
+      "default": "./dist/cli.js"
+    },
+    "./harness": {
+      "types": "./dist/harness/index.d.ts",
+      "default": "./dist/harness/index.js"
+    },
+    "./controller": {
+      "types": "./dist/controller/index.d.ts",
+      "default": "./dist/controller/index.js"
+    },
+    "./freewili": {
+      "types": "./dist/freewili/index.d.ts",
+      "default": "./dist/freewili/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "allowScripts": {
+    "node-pty": true,
+    "node-hid": true,
+    "esbuild": true
+  },
+  "scripts": {
+    "postinstall": "node scripts/postinstall.cjs",
+    "prepublishOnly": "npm run build",
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsx src/cli.ts",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "capture": "tsx scripts/capture-hid.ts",
+    "gen:controllers": "tsx scripts/gen-controller-table.ts && prettier --write CONTROLLERS.md",
+    "spike:windows": "node scripts/spike-windows.mjs",
+    "spike:serial": "tsx scripts/spike-serial-bridge.ts",
+    "device:sim": "tsx scripts/device-sim.ts",
+    "monitor:com": "tsx scripts/monitor-com.ts",
+    "bridge:rtt": "tsx scripts/rtt-bridge.ts",
+    "verify": "npm run typecheck && npm run lint && npm run format:check && npm run test"
+  },
+  "dependencies": {
+    "dualsense-ts": "^6.15.0",
+    "node-hid": "^3.3.0",
+    "node-pty": "^1.1.0",
+    "serialport": "^13.0.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "eslint": "^9.0.0",
+    "prettier": "^3.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^3.0.0"
+  }
+}

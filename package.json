@@ -1,0 +1,19 @@
+{
+  "name": "openmicro-freewili",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Easy-setup kit: FreeWili 2 touch UI → OpenMicro → Claude/Codex (one-command PC launcher)",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "setup": "npm install --prefix host && npm run build --prefix host",
+    "start": "node scripts/start.mjs",
+    "freewili": "node scripts/start.mjs",
+    "freewili:sim": "node scripts/start.mjs --sim",
+    "flash:display": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/flash-display.ps1",
+    "sync:firmware": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/flash-display.ps1 -SyncOnly",
+    "stop": "node scripts/stop.mjs"
+  }
+}

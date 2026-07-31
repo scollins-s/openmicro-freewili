@@ -1,0 +1,4 @@
+# Local kit artifacts (host copy may gain these after npm run setup)
+host/node_modules/
+host/dist/
+*.log

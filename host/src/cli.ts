@@ -1,0 +1,614 @@
+#!/usr/bin/env node
+// openmicro — wrap an AI agent CLI in a pty and drive it with a game controller.
+// Usage: openmicro [claude|codex] [...agent args]   (claude is the default)
+//
+// The first instance to bind the singleton port becomes the HOST: it owns the
+// controller and aggregates agent state across every session. Later instances
+// run as CLIENTS — their session still reports state via hooks, and the host
+// forwards terminal keystrokes to whichever session has focus.
+
+import { execFile } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
+import { readFileSync } from 'node:fs'
+import { isOpenmicroHost, reportTerminalFocus, runAsClient } from './client.js'
+import { HidManager } from './controller/hid-manager.js'
+import { dispatchAction } from './dispatch.js'
+import type { DispatchDeps } from './dispatch.js'
+import { harnessFor } from './harness/index.js'
+import {
+  focusAgent,
+  focusWorkspace,
+  listAgents,
+  listWorkspaces,
+  releaseAgent,
+  reportAgentState,
+} from './herdr.js'
+import type { Action, Harness } from './harness/types.js'
+import { FreeWiliBridge } from './freewili/bridge.js'
+import { DEFAULT_TCP_PORT } from './freewili/protocol.js'
+import { parseInvocation, USAGE } from './invocation.js'
+import { loadConfig } from './layers.js'
+import type { OpenMicroConfig } from './layers.js'
+import { effectiveFocusIndex, feedbackFor } from './feedback.js'
+import type { RGB } from './feedback.js'
+import { KeyRepeater } from './keymap.js'
+import { logger } from './logger.js'
+import { HOST_PORT } from './ports.js'
+import { AgentPty } from './pty.js'
+import { LayerRouter } from './router.js'
+import { HostServer } from './server.js'
+import { nextFocus } from './state.js'
+import type { Aggregate } from './state.js'
+import { actionLabel, controlLabel } from './labels.js'
+import type { ButtonId, ControllerEvent, ControllerType } from './types.js'
+
+const DEFAULT_THINKING_LEVEL = 2 // 'high' — level 2 of Claude's 5 effort steps
+const FEEDBACK_DEBOUNCE_MS = 50
+const LAYER_FLASH_MS = 600
+const SELF_SESSION_KEY = '__self__' // thinking-level key for the host's own pty
+// Only the d-pad arrows auto-repeat while held (TUI menu navigation).
+const REPEATING: ReadonlySet<ButtonId> = new Set([
+  'dpad_up',
+  'dpad_down',
+  'dpad_left',
+  'dpad_right',
+])
+
+const invocation = parseInvocation(process.argv.slice(2))
+if (invocation.help) {
+  console.log(USAGE)
+  process.exit(0)
+}
+if (invocation.version) {
+  const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
+    version: string
+  }
+  console.log(pkg.version)
+  process.exit(0)
+}
+
+// `doctor` is standalone: no agent wrapped, no host server. Run it and exit
+// before any of the host/client wiring below. Dynamically imported so its HID
+// + readline machinery never loads for a normal wrap.
+if (invocation.doctor) {
+  const { runDoctor } = await import('./doctor.js')
+  await runDoctor({ capture: invocation.doctorCapture })
+  process.exit(0)
+}
+
+let harness: Harness
+try {
+  harness = harnessFor(invocation.kind)
+} catch (err) {
+  console.error((err as Error).message)
+  process.exit(1)
+}
+
+let config: OpenMicroConfig
+try {
+  config = loadConfig()
+} catch (err) {
+  console.error((err as Error).message)
+  process.exit(1)
+}
+
+const install = harness.installHooks()
+if (install.trustNotice) console.error(install.trustNotice)
+
+const wrapperId = randomUUID()
+
+// Claim the herdr pane NOW, before the wrapped agent boots: herdr honors the
+// first source to claim a pane and silently drops every later one, so the
+// agent's own herdr integration hook (e.g. herdr:claude at SessionStart) would
+// otherwise win the pane and all of openmicro's state reports would be ignored.
+const herdrPaneId = process.env.HERDR_PANE_ID
+if (herdrPaneId) reportAgentState(herdrPaneId, 'idle')
+
+const server = new HostServer(harness, wrapperId)
+const isHost = await server.listen(HOST_PORT)
+
+let hid: HidManager | null = null
+let freewiliBridge: FreeWiliBridge | null = null
+
+function shutdown(): void {
+  agent.dispose()
+  if (herdrPaneId) releaseAgent(herdrPaneId)
+  if (isHost) {
+    server.close()
+    hid?.stop()
+    void freewiliBridge?.stop()
+  }
+}
+
+// GUI harnesses (usesPty: false) drive a desktop app instead of spawning a
+// CLI under a pty: controller bytes route to harness.execute, and the host
+// server keeps the event loop alive in place of a child process.
+const usesPty = harness.usesPty ?? true
+
+// GUI-mode terminal status. The terminal is ours here (no TUI passthrough),
+// so show live status: plain ANSI colors, no dependency. No-op for pty
+// harnesses — their terminal belongs to the wrapped TUI.
+const STATE_TINT: Record<string, number> = {
+  executing: 32, // green
+  waiting: 33, // yellow
+  complete: 36, // cyan
+  error: 31, // red
+  idle: 90, // grey
+}
+function guiStatus(msg: string, tint = 90): void {
+  if (!usesPty && process.stderr.isTTY) console.error(`\x1b[${tint}m●\x1b[0m ${msg}`)
+  else if (!usesPty) console.error(msg)
+}
+
+let agent: Pick<AgentPty, 'write' | 'dispose'>
+try {
+  agent = usesPty
+    ? new AgentPty(
+        harness.command,
+        harness.buildArgs(invocation.agentArgs),
+        wrapperId,
+        (code) => {
+          shutdown()
+          process.exit(code)
+        },
+        // Terminal focus changes (window switch, tmux/herdr pane click) go to the
+        // host — voice must disengage the moment its terminal is no longer active.
+        // The host posts to itself: one path for every wrapper.
+        (focused) => reportTerminalFocus(wrapperId, focused),
+      )
+    : {
+        write: (bytes: string) => {
+          harness.execute?.(bytes)
+        },
+        // Exit must never strand synthetic keys held down (dictation chord) —
+        // a stuck Ctrl turns every click into a right-click machine-wide.
+        dispose: () => harness.dispose?.(),
+      }
+} catch (err) {
+  console.error((err as Error).message)
+  process.exit(1)
+}
+
+if (!usesPty) {
+  // Launch/activate the target app the way pty harnesses launch their CLI.
+  execFile(harness.command, harness.buildArgs(invocation.agentArgs), () => {})
+  guiStatus(`openmicro ${harness.kind} started — waiting for a controller… (Ctrl+C to quit)`, 36)
+}
+
+// Ctrl+C passthrough: forward the interrupt to the child so it decides how to
+// handle it (in raw mode the terminal already routes ^C straight to the pty;
+// this covers a programmatic `kill -INT`). SIGTERM cleans up and exits.
+// GUI harnesses have no child to forward to: clean up and exit instead.
+process.on('SIGINT', () => {
+  if (usesPty) {
+    agent.write('\x03')
+  } else {
+    shutdown()
+    process.exit(130)
+  }
+})
+process.on('SIGTERM', () => {
+  shutdown()
+  process.exit(0)
+})
+
+if (!isHost) {
+  // ── Client: another openmicro owns the controller + state aggregation. ──
+  guiStatus('another openmicro instance owns the controller — running as client', 33)
+  if (await isOpenmicroHost()) {
+    runAsClient(wrapperId, invocation.kind, (bytes) => agent.write(bytes)).catch((err) =>
+      logger.warn('client stream failed', err),
+    )
+  } else {
+    logger.warn('singleton port in use by a non-openmicro process — running without controller')
+  }
+} else {
+  // ── Host: controller + feedback + state aggregation. ────────────────────
+  // FreeWili coexists with HID unless --no-hid. FreeWili-only: --freewili --no-hid.
+  if (!invocation.noHid) hid = new HidManager()
+  const router = new LayerRouter(config)
+  const repeater = new KeyRepeater()
+  const thinkingLevels = new Map<string, number>()
+  let focusSessionId: string | null = null
+  let herdrWorkspaceId: string | null = null // null = local mode (no herdr space selected)
+  let herdrAgentTarget: string | null = null // last-focused agent terminal within the space
+
+  let feedbackTimer: ReturnType<typeof setTimeout> | null = null
+  let flashUntil = 0
+  let flashColor: RGB | null = null
+
+  const focusKey = (): string => focusSessionId ?? SELF_SESSION_KEY
+
+  /** Session hosted in a herdr pane, or null when the pane runs no openmicro session. */
+  function sessionForPane(paneId: string): string | null {
+    for (const [sessionId, herdrPane] of server.sessionPanes) {
+      if (herdrPane === paneId) return sessionId
+    }
+    return null
+  }
+
+  // True while herdr focus sits on a pane hosting no openmicro session (a
+  // plain terminal, a foreign agent, an empty space). Input is dropped rather
+  // than falling through to some pane the user isn't looking at.
+  let herdrForeignFocus = false
+
+  /** Terminal writes go to the focused session's instance, else our own pty. */
+  function writeToFocused(bytes: string): void {
+    // The foreign-pane guard protects terminal panes; a GUI harness targets
+    // the app itself, so pane focus must not gate its input.
+    if (herdrForeignFocus && usesPty) return // typing into an invisible pane is worse than a no-op
+    const instanceId = focusSessionId ? server.instanceForSession(focusSessionId) : null
+    if (!instanceId || !server.sendKeysToInstance(instanceId, bytes)) agent.write(bytes)
+  }
+
+  /** L2: walk [none, ws1, …, wsN] (wrapping); selecting a workspace focuses it in herdr. */
+  async function cycleHerdrSpace(): Promise<void> {
+    const ids = (await listWorkspaces()).map((w) => w.workspace_id)
+    const current = herdrWorkspaceId === null ? -1 : ids.indexOf(herdrWorkspaceId)
+    herdrWorkspaceId = ids[current + 1] ?? null // past the end (or vanished ws) → local mode
+    herdrAgentTarget = null
+    if (herdrWorkspaceId) {
+      await focusWorkspace(herdrWorkspaceId)
+      // Entering a space must also retarget voice/keys, else writeToFocused
+      // keeps sending to the previously-focused session in another space.
+      await cycleHerdrAgent()
+    } else {
+      herdrForeignFocus = false // back to local mode: explicit pick, unblock input
+    }
+  }
+
+  /** Touchpad while a herdr space is selected: cycle the space's agents in herdr. */
+  async function cycleHerdrAgent(): Promise<void> {
+    const agents = (await listAgents()).filter((a) => a.workspace_id === herdrWorkspaceId)
+    if (agents.length === 0) {
+      // Empty space: keeping the old focus would spill voice into another space.
+      focusSessionId = null
+      herdrForeignFocus = true
+      scheduleFeedback()
+      return
+    }
+    const current = agents.findIndex((a) => a.terminal_id === herdrAgentTarget)
+    const next = agents[(current + 1) % agents.length]!
+    herdrAgentTarget = next.terminal_id
+    void focusAgent(next.terminal_id)
+    // Mark our own pane change as seen, or the focus poll mistakes it for a
+    // mouse click and re-syncs herdrWorkspaceId right after LT set it — the
+    // press past the last space (→ local mode) got silently undone.
+    lastHerdrFocusPane = next.pane_id
+    // Voice/keys must follow the herdr pick: retarget input routing to the
+    // session hosted in that pane. No session in that pane (foreign agent) →
+    // clear focus rather than keep spilling into a stale session elsewhere.
+    focusSessionId = sessionForPane(next.pane_id)
+    herdrForeignFocus = focusSessionId === null
+    scheduleFeedback()
+  }
+
+  // Herdr cycles are async (each awaits herdr CLI subprocesses) but were fired
+  // unawaited: two quick presses read the same herdrWorkspaceId/AgentTarget and
+  // compute the same "next" — the second press was silently swallowed. Chain
+  // them so each cycle sees the state the previous one wrote.
+  let herdrOps: Promise<void> = Promise.resolve()
+  function queueHerdrOp(fn: () => Promise<void>): void {
+    herdrOps = herdrOps.then(fn).catch((err) => logger.warn('herdr cycle failed', err))
+  }
+
+  // Mouse clicks on herdr panes/spaces change focus entirely inside herdr —
+  // no controller event fires. Poll the focused herdr agent and retarget
+  // voice/keys routing whenever it moves.
+  const HERDR_FOCUS_POLL_MS = 1000
+  let lastHerdrFocusPane: string | null = null
+
+  async function syncHerdrFocus(): Promise<void> {
+    if (!herdrPaneId && server.sessionPanes.size === 0) return // no herdr in play
+    const focused = (await listAgents()).find((a) => a.focused)
+    const pane = focused?.pane_id ?? null // null = focused pane hosts no agent
+    if (pane === lastHerdrFocusPane) return // edge-triggered: only act on change
+    lastHerdrFocusPane = pane
+    if (!focused) {
+      // A plain (non-agent) pane took focus: block input instead of routing
+      // voice/keys into a pane the user isn't looking at.
+      focusSessionId = null
+      herdrForeignFocus = true
+      scheduleFeedback()
+      return
+    }
+    herdrWorkspaceId = focused.workspace_id
+    herdrAgentTarget = focused.terminal_id
+    focusSessionId = sessionForPane(focused.pane_id)
+    herdrForeignFocus = focusSessionId === null
+    scheduleFeedback()
+  }
+
+  // While dictation is live, a mouse pane change must cut voice within a beat,
+  // not after up to a second of transcribing into the pane the user left.
+  const HERDR_FOCUS_POLL_VOICE_MS = 250
+  const scheduleHerdrPoll = (ms: number): void => {
+    setTimeout(() => {
+      syncHerdrFocus()
+        .catch((err) => logger.warn('herdr focus sync failed', err))
+        .finally(() =>
+          scheduleHerdrPoll(
+            voiceSessionKey === null ? HERDR_FOCUS_POLL_MS : HERDR_FOCUS_POLL_VOICE_MS,
+          ),
+        )
+    }, ms).unref?.()
+  }
+  scheduleHerdrPoll(HERDR_FOCUS_POLL_MS)
+
+  /** Change focus: index -1 cycles to the next tracked session, else jumps to a slot. */
+  function focusSession(index: number): void {
+    if (herdrWorkspaceId !== null && index < 0) {
+      queueHerdrOp(cycleHerdrAgent)
+      return
+    }
+    const sessions = server.tracker.list()
+    if (sessions.length === 0) return
+    herdrForeignFocus = false // explicit local pick overrides the herdr block
+    if (index < 0) {
+      const current = sessions.findIndex((s) => s.id === focusSessionId)
+      const next = sessions[(current + 1) % sessions.length]
+      if (next) focusSessionId = next.id
+    } else {
+      const target = sessions[index]
+      if (target) focusSessionId = target.id
+    }
+    scheduleFeedback()
+  }
+
+  function applyFeedback(): void {
+    const sessions = server.tracker.list()
+    const focusedIndex = effectiveFocusIndex(
+      sessions,
+      focusSessionId,
+      server.tracker.aggregate().focusSessionId,
+    )
+    const layerColor = config.layers[router.currentLayer]?.color ?? { r: 0, g: 0, b: 0 }
+    const fb = feedbackFor(sessions, focusedIndex, layerColor)
+    const lightbar = Date.now() < flashUntil && flashColor ? flashColor : fb.lightbar
+    hid?.output?.setLightbar(lightbar)
+    hid?.output?.setPlayerLeds(fb.playerLeds)
+    freewiliBridge?.pushFeedback({
+      sessions: sessions.map((s) => ({ state: s.state, id: s.id })),
+      focusIndex: focusedIndex,
+      lightbar,
+      playerLeds: fb.playerLeds,
+      layer: router.currentLayer,
+      layerName: config.layers[router.currentLayer]?.name,
+      aggregateState: sessions[focusedIndex]?.state,
+    })
+  }
+
+  function scheduleFeedback(): void {
+    // Every focus change routes through here (it must, to move the LEDs) —
+    // which is also the moment dictation must stop in the pane the user left,
+    // else it keeps transcribing there alongside the newly focused pane.
+    voiceFollowFocus()
+    if (feedbackTimer) return
+    feedbackTimer = setTimeout(() => {
+      feedbackTimer = null
+      applyFeedback()
+    }, FEEDBACK_DEBOUNCE_MS)
+  }
+
+  // Layer flip: flash the new layer's tint on the lightbar, then let the next
+  // apply restore the state color once the flash window elapses.
+  router.onLayerChange = (index: number): void => {
+    flashColor = config.layers[index]?.color ?? null
+    flashUntil = Date.now() + LAYER_FLASH_MS
+    applyFeedback()
+    setTimeout(applyFeedback, LAYER_FLASH_MS).unref?.()
+  }
+
+  const deps: DispatchDeps = {
+    harness,
+    config,
+    getThinkingLevel: () => thinkingLevels.get(focusKey()) ?? DEFAULT_THINKING_LEVEL,
+    setThinkingLevel: (level) => thinkingLevels.set(focusKey(), level),
+    write: writeToFocused,
+    focusSession,
+    setLayer: (index) => router.setLayer(index),
+    cycleHerdrSpace: () => queueHerdrOp(cycleHerdrSpace),
+  }
+
+  // Voice (Space) toggles dictation inside the focused pane's own agent
+  // process — openmicro must remember which pane holds it open, else starting
+  // voice in a second pane leaves the first one transcribing every word too.
+  // ponytail: best-effort tracking. Toggling dictation off inside the pane
+  // itself (keyboard Space) goes unseen here; next controller press resyncs.
+  let voiceSessionKey: string | null = null
+
+  /** Toggle dictation off in whichever pane still holds it open. */
+  function stopVoice(): void {
+    if (voiceSessionKey === null) return
+    const off = harness.resolveAction({ type: 'push_to_talk' }, { thinkingLevel: 0 })
+    if (off) {
+      // Host-owned sessions have no client instance (instanceForSession
+      // returns null for them) — the stop keystroke goes to our own pty,
+      // same as writeToFocused's fallback.
+      if (
+        voiceSessionKey === SELF_SESSION_KEY ||
+        server.sessionOwners.get(voiceSessionKey) === wrapperId
+      ) {
+        agent.write(off.bytes)
+      } else {
+        const instanceId = server.instanceForSession(voiceSessionKey)
+        if (!instanceId || !server.sendKeysToInstance(instanceId, off.bytes))
+          logger.warn(`voice stop not delivered (session ${voiceSessionKey})`)
+      }
+    }
+    voiceSessionKey = null
+  }
+
+  /** Voice is live in at most one pane: the focused one. Focus left it → stop. */
+  function voiceFollowFocus(): void {
+    if (!usesPty) return // GUI mode: voice targets the app, not a pane — only triangle stops it
+    if (voiceSessionKey === null) return
+    if (herdrForeignFocus || voiceSessionKey !== focusKey()) stopVoice()
+  }
+
+  /** Before a push_to_talk press: toggle dictation off wherever it was left on. */
+  function retargetVoice(): void {
+    if (herdrForeignFocus && usesPty) return // press is dropped by writeToFocused anyway
+    const key = focusKey()
+    if (voiceSessionKey !== null && voiceSessionKey !== key) {
+      stopVoice() // backstop — voiceFollowFocus should already have closed it
+      voiceSessionKey = key // this press opens it here
+      return
+    }
+    voiceSessionKey = voiceSessionKey === key ? null : key // same-pane toggle
+  }
+
+  // Tap-mode dictation auto-submits its transcript on stop — the recording is
+  // over but no controller press told us, so the tracking goes stale. Sending
+  // the stale off-toggle later would land Space on an EMPTY prompt and start a
+  // fresh recording in a pane the user already left (the overlap bug). The
+  // UserPromptSubmit hook is the ground truth for that moment: drop tracking
+  // without sending anything.
+  server.on('prompt-submit', (e: { sessionId: string; hostOwned: boolean }) => {
+    // GUI mode: dropping tracking here would desync the harness's held
+    // dictation chord — voice state is owned by the controller toggle alone.
+    if (!usesPty) return
+    if (voiceSessionKey === (e.hostOwned ? SELF_SESSION_KEY : e.sessionId)) voiceSessionKey = null
+  })
+
+  // Voice terminal no longer active (OS window switch, tmux/herdr pane click —
+  // works for plain multi-terminal setups, no herdr required): disengage
+  // dictation in it. Focus-in is ignored; only the loss matters for voice.
+  server.on('terminal-focus', (e: { wrapperId: string; focused: boolean }) => {
+    // GUI mode: the app keystroke itself steals OS focus from our terminal on
+    // every press — stopping voice on that focus-out would cut dictation off
+    // moments after it starts.
+    if (!usesPty) return
+    if (e.focused || voiceSessionKey === null) return
+    const owner =
+      voiceSessionKey === SELF_SESSION_KEY ? wrapperId : server.sessionOwners.get(voiceSessionKey)
+    if (owner === e.wrapperId) stopVoice()
+  })
+
+  // GUI mode: mirror agent-state changes to the terminal (LEDs may be the only
+  // other signal, and only when the app fires the shared lifecycle hooks).
+  let lastGuiStates = ''
+  function reportGuiStates(): void {
+    const states = server.tracker
+      .list()
+      .map((s) => s.state)
+      .join(', ')
+    if (!states || states === lastGuiStates) return
+    lastGuiStates = states
+    guiStatus(`agent: ${states}`, STATE_TINT[server.tracker.list()[0]?.state ?? 'idle'] ?? 90)
+  }
+
+  let lastAttentionId: string | null = null
+  server.on('aggregate', (agg: Aggregate) => {
+    reportGuiStates()
+    const next = nextFocus(focusSessionId, lastAttentionId, agg)
+    lastAttentionId = next.lastAttentionId
+    // While herdr governs focus (space selected or foreign pane focused),
+    // attention must not steal it — voice would silently reroute to a pane
+    // the user isn't looking at, fighting the mouse-click focus sync.
+    // Same while dictation is live: stealing focus would cut voice off
+    // mid-sentence (voiceFollowFocus stops it the moment focus leaves).
+    if (herdrWorkspaceId === null && !herdrForeignFocus && voiceSessionKey === null)
+      focusSessionId = next.focus
+    scheduleFeedback()
+  })
+
+  let padType: ControllerType = 'generic-hid'
+  // One status line per routed action: "triangle → push-to-talk" (physical
+  // name per pad family), replacing the raw keystroke payload dump.
+  const announce = (action: Action): void => {
+    const control = router.lastControl
+    if (control) guiStatus(`${controlLabel(control, padType)} → ${actionLabel(action)}`, 35)
+    else guiStatus(`freewili → ${actionLabel(action)}`, 35)
+  }
+
+  const handleAction = (action: Action): void => {
+    // FreeWili firmware may send arrow names; expand to CSI for the agent TUI.
+    let next = action
+    if (action.type === 'keys') {
+      const arrows: Record<string, string> = {
+        up: '\x1b[A',
+        down: '\x1b[B',
+        right: '\x1b[C',
+        left: '\x1b[D',
+      }
+      const mapped = arrows[action.bytes]
+      if (mapped) next = { type: 'keys', bytes: mapped }
+    }
+    announce(next)
+    if (next.type === 'push_to_talk') retargetVoice()
+    dispatchAction(next, deps)
+  }
+
+  if (invocation.freewili) {
+    freewiliBridge = new FreeWiliBridge({
+      tcpPort: invocation.freewiliTcp ?? DEFAULT_TCP_PORT,
+      serialPath: invocation.freewiliSerial,
+      onAction: (action) => {
+        try {
+          handleAction(action)
+        } catch (err) {
+          logger.error('freewili action handling failed', err)
+        }
+      },
+    })
+    void freewiliBridge.start().then(() => {
+      freewiliBridge?.pushConfig({
+        workflows: config.workflows,
+        layerNames: config.layers.map((l) => l.name),
+      })
+      applyFeedback()
+      guiStatus(
+        `freewili bridge on tcp:${invocation.freewiliTcp ?? DEFAULT_TCP_PORT}` +
+          (invocation.freewiliSerial ? ` serial:${invocation.freewiliSerial}` : ''),
+        36,
+      )
+    })
+  }
+
+  if (hid) {
+    hid.on('data', (e: ControllerEvent) => {
+      try {
+        if (e.kind === 'connected') {
+          padType = e.controllerType
+          logger.info(`Controller connected: ${e.controllerType}`)
+          guiStatus(`controller connected (${e.controllerType}) — buttons now drive the app`, 32)
+          scheduleFeedback()
+          return
+        }
+        if (e.kind === 'disconnected') {
+          repeater.releaseAll()
+          guiStatus('controller disconnected — waiting…', 33)
+          return
+        }
+        const action = router.route(e)
+        if (!action) return
+
+        // Held d-pad arrows auto-repeat; every other control fires once on press.
+        if (e.kind === 'button' && REPEATING.has(e.button) && action.type === 'keys') {
+          if (e.pressed) {
+            announce(action)
+            repeater.press(e.button, () => dispatchAction(action, deps))
+          } else repeater.release(e.button)
+          return
+        }
+        // GUI dictation is hold-to-talk: forward both button edges so the chord
+        // stays down exactly while the button is held (pty voice stays a toggle).
+        if (!usesPty && action.type === 'push_to_talk' && e.kind === 'button') {
+          if (e.pressed) announce(action)
+          dispatchAction({ ...action, pressed: e.pressed }, deps)
+          return
+        }
+        if (e.kind === 'button' && !e.pressed) return // press-only for non-repeating buttons
+        handleAction(action)
+      } catch (err) {
+        logger.error('controller event handling failed', err)
+      }
+    })
+
+    hid.start() // HID absence is non-fatal — the manager polls until a pad appears
+  }
+  applyFeedback() // seed the lightbar with the current layer color
+}
+
+logger.info(`openmicro started (${isHost ? 'host' : 'client'}, kind: ${invocation.kind})`)

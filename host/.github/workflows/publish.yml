@@ -1,0 +1,41 @@
+name: publish
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  id-token: write # npm trusted publishing (OIDC) — no stored token to rotate
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      # Trusted publishing needs npm >= 11.5.1; Node 22 bundles 10.x. npm 12
+      # blocks dependency install scripts unless allowlisted — the native deps
+      # that need them are approved via allowScripts in package.json.
+      - run: npm install -g npm@latest
+      - run: npm ci
+      - run: npm run verify
+      - run: npm publish --access public
+      # Tags alone don't show under "Releases" — create the Release object too.
+      # Notes come from the tag's CHANGELOG.md section; fall back to generated
+      # notes if the section is missing so a release never fails on a doc gap.
+      - run: |
+          awk -v ver="${GITHUB_REF_NAME#v}" \
+            '$0 ~ "^## \\[" ver "\\]" {found=1; next} /^## \[/ {found=0} found' \
+            CHANGELOG.md > release-notes.md
+          if [ -s release-notes.md ]; then
+            gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file release-notes.md
+          else
+            gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
