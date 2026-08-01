@@ -45,7 +45,14 @@ add_subdirectory(apps/hello_dvi)
 add_subdirectory(apps/hello_buttons)
 add_subdirectory(apps/toggleled)
 add_subdirectory(apps/store_receiver)
-add_subdirectory(apps/store_online)
+# store_online is an integration app whose sources live in the optional
+# sibling app-store-online repository. Do not make ordinary BSP/OpenMicro
+# builds depend on that external checkout.
+if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../app-store-online/display/main.c")
+    add_subdirectory(apps/store_online)
+else()
+    message(STATUS "Skipping store_online (optional app-store-online sources not found)")
+endif()
 add_subdirectory(apps/store_demo)
 add_subdirectory(apps/store_ram)
 add_subdirectory(apps/launcher)
