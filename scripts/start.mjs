@@ -25,8 +25,7 @@ import { existsSync } from 'node:fs'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const KIT_ROOT = path.resolve(__dirname, '..')
 const HOST_ROOT = path.join(KIT_ROOT, 'host')
-const REPO_ROOT = path.resolve(KIT_ROOT, '..')
-const WILIBSP = path.join(REPO_ROOT, 'device stuff', 'wilibsp')
+const WILIBSP = path.join(KIT_ROOT, 'wilibsp')
 const FW_PY = path.join(WILIBSP, 'tools', 'fw.py')
 
 const RTT_HOST = '127.0.0.1'

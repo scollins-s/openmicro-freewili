@@ -1,12 +1,13 @@
 # Display firmware (openmicro)
 
-Snapshot of `device stuff/wilibsp/apps/openmicro` for convenient reading and
-editing inside this kit.
+Editable source for the OpenMicro display application. The matching FreeWili 2
+BSP and OneWili library are vendored in this repository under `wilibsp/` and
+`onewili/`.
 
 ## Build and flash
 
-This app depends on the FreeWili display BSP. **Always build/flash through
-wilibsp**, not as a standalone CMake project from this folder alone.
+This app depends on the FreeWili display BSP. Build and flash through the
+vendored `wilibsp`; the wrapper below synchronizes this directory first.
 
 From the kit root:
 
@@ -14,16 +15,16 @@ From the kit root:
 npm run flash:display
 ```
 
-Sync this snapshot into wilibsp, then flash:
+Synchronize without building or flashing:
 
 ```powershell
-powershell -File scripts/flash-display.ps1 -Sync
+powershell -File scripts/flash-display.ps1 -SyncOnly
 ```
 
 Or manually:
 
 ```powershell
-cd "C:\repos\free wili 2\device stuff\wilibsp"
+cd wilibsp
 py -3 tools\fw.py flash openmicro
 ```
 
@@ -40,8 +41,7 @@ RTT bridge (or `npm start` from the kit root).
 
 ## Keep copies in sync
 
-- **wilibsp app** is what actually gets compiled.
-- **This folder** is the kit’s documented copy.
-- After editing here, run `npm run sync:firmware` (or `-Sync` on flash) before
-  flashing. After editing in wilibsp, copy back here if you want the kit
-  snapshot updated.
+- **This folder is the source of truth.**
+- `wilibsp/apps/openmicro` is the synchronized build copy.
+- `npm run flash:display` and `-BuildOnly` synchronize automatically.
+- Avoid editing the synchronized copy because the next build overwrites it.

@@ -1,0 +1,11 @@
+build/
+build-*/
+__pycache__/
+*.uf2
+*.elf
+*.bin
+.venv/
+.superpowers/
+.claude/
+# Local-only port of the standalone orca_browser repo; lives in its own repo.
+apps/orca_browser/

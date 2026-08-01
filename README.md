@@ -24,7 +24,9 @@ Details: [docs/CAPABILITIES.md](docs/CAPABILITIES.md).
 ```text
 openmicro-freewili/
   host/                 OpenMicro PC host (copy of demo_inspo/OpenMicro)
-  firmware/openmicro/   Display app sources (snapshot; build via wilibsp)
+  firmware/openmicro/   Canonical display app sources
+  wilibsp/              Vendored FreeWili 2 display BSP and build tools
+  onewili/              Vendored OneWili FwGUI transport library
   peer/                 Main-CPU CDC bridge kit (optional / future)
   scripts/start.mjs     One-command: OpenOCD + host + RTT bridge
   scripts/flash-display.ps1
@@ -33,8 +35,8 @@ openmicro-freewili/
 
 ## Quick start
 
-**Prereqs:** Node.js ≥ 22, Python 3 (`py`), Pico SDK / OpenOCD (as used by
-`device stuff/wilibsp`), Claude or Codex CLI on `PATH`, FreeWili 2 + CMSIS-DAP.
+**Prereqs:** Node.js ≥ 22, Python 3 (`py`), Pico SDK / OpenOCD, Claude or
+Codex CLI on `PATH`, FreeWili 2 + CMSIS-DAP.
 
 ```powershell
 cd "C:\repos\free wili 2\openmicro-freewili"
@@ -79,13 +81,12 @@ npm start -- --sim
 | Path | Role |
 |---|---|
 | `demo_inspo/OpenMicro/` | Original PC host (still valid) |
-| `device stuff/wilibsp/apps/openmicro/` | Build/flash home for display firmware |
+| `wilibsp/apps/openmicro/` | Synchronized build copy for display firmware |
 | `device stuff/main-openmicro-peer/` | Original main peer sources |
 | **`openmicro-freewili/`** | This kit — copies + one-command run |
 
-Firmware still **builds through wilibsp** (Pico BSP). Edit either the kit
-snapshot or the wilibsp app; use `npm run sync:firmware` before flash if you
-changed the kit copy.
+Firmware builds through the vendored Pico BSP. Edit `firmware/openmicro`; the
+build/flash wrapper synchronizes it into `wilibsp/apps/openmicro` automatically.
 
 ## Legacy three-terminal flow
 

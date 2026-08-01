@@ -11,7 +11,7 @@ Install once on a PC that will run OpenMicro and talk to FreeWili 2.
 | Pico SDK / OpenOCD | Same install `wilibsp` already uses (`~/.pico-sdk` or PATH) |
 | Claude and/or Codex CLI | On `PATH`; OpenMicro wraps one of them |
 | FreeWili 2 + USB CMSIS-DAP | Display flash + RTT |
-| This repo checkout | Kit expects sibling `device stuff/wilibsp` |
+| This repo checkout | Includes the matching `wilibsp` and OneWili sources |
 
 ## Install the PC host
 
@@ -24,17 +24,17 @@ That runs `npm install` and `npm run build` inside `host/`.
 
 ## Flash the display app (once, or after UI changes)
 
-Default flashes the app already in wilibsp (no sync):
+The wrapper synchronizes `firmware/openmicro` into the vendored BSP and flashes
+it:
 
 ```powershell
 npm run flash:display
 ```
 
-If you edited sources under `firmware/openmicro/` in this kit, sync then flash:
+To synchronize without building or flashing:
 
 ```powershell
-npm run flash:display --  # or:
-powershell -File scripts/flash-display.ps1 -Sync
+npm run sync:firmware
 ```
 
 Probe on the wrong CMSIS-DAP interface:

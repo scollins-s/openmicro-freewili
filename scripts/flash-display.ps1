@@ -1,15 +1,13 @@
-# Flash FreeWili display with the openmicro app via existing wilibsp BSP.
+# Build or flash the FreeWili display with the vendored wilibsp BSP.
 #
 # Usage:
 #   .\scripts\flash-display.ps1
 #   .\scripts\flash-display.ps1 -Iface 1
 #   .\scripts\flash-display.ps1 -SyncOnly    # copy kit firmware → wilibsp only
-#   .\scripts\flash-display.ps1 -Sync        # sync then flash
 #   .\scripts\flash-display.ps1 -BuildOnly
 
 param(
   [int]$Iface = -1,
-  [switch]$Sync,
   [switch]$SyncOnly,
   [switch]$BuildOnly
 )
@@ -17,8 +15,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $KitRoot = Split-Path -Parent $PSScriptRoot
-$RepoRoot = Split-Path -Parent $KitRoot
-$Wilibsp = Join-Path $RepoRoot "device stuff\wilibsp"
+$Wilibsp = Join-Path $KitRoot "wilibsp"
 $FwPy = Join-Path $Wilibsp "tools\fw.py"
 $KitFirmware = Join-Path $KitRoot "firmware\openmicro"
 $WilibspApp = Join-Path $Wilibsp "apps\openmicro"
@@ -41,10 +38,10 @@ function Sync-Firmware {
   Write-Host "Sync complete."
 }
 
-if ($Sync -or $SyncOnly) {
-  Sync-Firmware
-  if ($SyncOnly) { exit 0 }
-}
+# firmware/openmicro is the source of truth. Always synchronize it before a
+# build or flash so the compiled application cannot silently drift from it.
+Sync-Firmware
+if ($SyncOnly) { exit 0 }
 
 $fwArgs = @("-3", $FwPy)
 if ($BuildOnly) {

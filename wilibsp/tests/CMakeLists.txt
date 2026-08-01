@@ -1,0 +1,227 @@
+cmake_minimum_required(VERSION 3.13)
+project(wilibsp_tests C)
+set(CMAKE_C_STANDARD 11)
+enable_testing()
+
+# Standalone tree: no Pico SDK, no pico_sdk_init(). Pure-logic modules from
+# ../bsp are compiled directly against the host C compiler so tests run
+# natively on Windows/Linux with no hardware.
+
+add_executable(test_led_color
+    test_led_color.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../bsp/leds/led_color.c)
+target_include_directories(test_led_color PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../bsp
+    ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME led_color COMMAND test_led_color)
+
+add_executable(test_tone_gen
+    test_tone_gen.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../bsp/audio/tone_gen.c)
+target_include_directories(test_tone_gen PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../bsp
+    ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(test_tone_gen m)
+add_test(NAME tone_gen COMMAND test_tone_gen)
+
+add_executable(test_vu_meter
+    test_vu_meter.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../bsp/audio/vu_meter.c)
+target_include_directories(test_vu_meter PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../bsp
+    ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(test_vu_meter m)
+add_test(NAME vu_meter COMMAND test_vu_meter)
+
+add_executable(test_cc1101_regs
+    test_cc1101_regs.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../bsp/radio/cc1101_regs.c)
+target_include_directories(test_cc1101_regs PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../bsp
+    ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME cc1101_regs COMMAND test_cc1101_regs)
+
+add_executable(test_monitor_engine
+    test_monitor_engine.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../bsp/radio/monitor_engine.c)
+target_include_directories(test_monitor_engine PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../bsp
+    ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME monitor_engine COMMAND test_monitor_engine)
+
+add_executable(test_capture_store
+    test_capture_store.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../bsp/radio/capture_store.c)
+target_include_directories(test_capture_store PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../bsp
+    ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME capture_store COMMAND test_capture_store)
+
+add_executable(test_ook_tx
+    test_ook_tx.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../bsp/radio/ook_tx.c)
+target_include_directories(test_ook_tx PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../bsp
+    ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_definitions(test_ook_tx PRIVATE HOST_TEST)
+add_test(NAME ook_tx COMMAND test_ook_tx)
+
+add_executable(test_scan_engine
+    test_scan_engine.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../bsp/radio/scan_engine.c)
+target_include_directories(test_scan_engine PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../bsp
+    ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_definitions(test_scan_engine PRIVATE HOST_TEST)
+add_test(NAME scan_engine COMMAND test_scan_engine)
+
+add_executable(test_cic
+    test_cic.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../bsp/dsp/cic.c)
+target_include_directories(test_cic PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../bsp
+    ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME cic COMMAND test_cic)
+
+add_executable(test_dcblock
+    test_dcblock.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../bsp/dsp/dcblock.c)
+target_include_directories(test_dcblock PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../bsp
+    ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME dcblock COMMAND test_dcblock)
+
+add_executable(test_sht40
+    test_sht40.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../bsp/sensors/sht40.c)
+target_include_directories(test_sht40 PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../bsp
+    ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME sht40 COMMAND test_sht40)
+
+add_executable(test_opt4001
+    test_opt4001.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../bsp/sensors/opt4001.c)
+target_include_directories(test_opt4001 PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../bsp
+    ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME opt4001 COMMAND test_opt4001)
+
+add_executable(test_bmi323
+    test_bmi323.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../bsp/sensors/bmi323.c)
+target_include_directories(test_bmi323 PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../bsp
+    ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME bmi323 COMMAND test_bmi323)
+
+add_executable(test_bmm350_comp
+    test_bmm350_comp.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../bsp/sensors/bmm350_comp.c)
+target_include_directories(test_bmm350_comp PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../bsp
+    ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME bmm350_comp COMMAND test_bmm350_comp)
+
+add_executable(test_palette
+    test_palette.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../bsp/gfx/palette.c)
+target_include_directories(test_palette PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../bsp
+    ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME palette COMMAND test_palette)
+
+# --- bsp/ir pure-logic group (harvested from WiliIR; see docs/drivers/ir.md) ---
+set(BSPIR ${CMAKE_CURRENT_SOURCE_DIR}/../bsp/ir)
+add_executable(test_ir_nec test_ir_nec.c ${BSPIR}/ir_decode.c ${BSPIR}/ir_encode.c ${BSPIR}/ir_protocols.c)
+target_include_directories(test_ir_nec PRIVATE ${BSPIR} ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME ir_nec COMMAND test_ir_nec)
+
+add_executable(test_ir_pd test_ir_pd.c ${BSPIR}/ir_decode.c ${BSPIR}/ir_encode.c ${BSPIR}/ir_protocols.c)
+target_include_directories(test_ir_pd PRIVATE ${BSPIR} ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME ir_pd COMMAND test_ir_pd)
+
+add_executable(test_ir_manchester test_ir_manchester.c ${BSPIR}/ir_decode.c ${BSPIR}/ir_encode.c ${BSPIR}/ir_protocols.c)
+target_include_directories(test_ir_manchester PRIVATE ${BSPIR} ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME ir_manchester COMMAND test_ir_manchester)
+
+add_executable(test_ir_kaseikyo test_ir_kaseikyo.c ${BSPIR}/ir_decode.c ${BSPIR}/ir_encode.c ${BSPIR}/ir_protocols.c)
+target_include_directories(test_ir_kaseikyo PRIVATE ${BSPIR} ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME ir_kaseikyo COMMAND test_ir_kaseikyo)
+
+add_executable(test_ir_dispatch test_ir_dispatch.c ${BSPIR}/ir_decode.c ${BSPIR}/ir_encode.c ${BSPIR}/ir_protocols.c)
+target_include_directories(test_ir_dispatch PRIVATE ${BSPIR} ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME ir_dispatch COMMAND test_ir_dispatch)
+
+add_executable(test_ir_frame test_ir_frame.c ${BSPIR}/ir_decode.c ${BSPIR}/ir_encode.c ${BSPIR}/ir_protocols.c ${BSPIR}/ir_frame.c)
+target_include_directories(test_ir_frame PRIVATE ${BSPIR} ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME ir_frame COMMAND test_ir_frame)
+
+add_executable(test_ir_tx_pack test_ir_tx_pack.c ${BSPIR}/ir_tx_pack.c)
+target_include_directories(test_ir_tx_pack PRIVATE ${BSPIR} ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME ir_tx_pack COMMAND test_ir_tx_pack)
+
+add_executable(test_ir_file test_ir_file.c ${BSPIR}/ir_file.c ${BSPIR}/ir_protocols.c)
+target_include_directories(test_ir_file PRIVATE ${BSPIR} ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME ir_file COMMAND test_ir_file)
+
+add_executable(test_db_sort test_db_sort.c ${BSPIR}/db_sort.c)
+target_include_directories(test_db_sort PRIVATE ${BSPIR} ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME db_sort COMMAND test_db_sort)
+
+add_executable(test_ir_golden test_ir_golden.c ${BSPIR}/ir_decode.c ${BSPIR}/ir_protocols.c)
+target_include_directories(test_ir_golden PRIVATE ${BSPIR} ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME ir_golden COMMAND test_ir_golden)
+
+add_executable(test_ir_resolve test_ir_resolve.c ${BSPIR}/ir_resolve.c ${BSPIR}/ir_encode.c ${BSPIR}/ir_decode.c ${BSPIR}/ir_protocols.c)
+target_include_directories(test_ir_resolve PRIVATE ${BSPIR} ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME ir_resolve COMMAND test_ir_resolve)
+
+add_executable(test_dvi_osd
+    test_dvi_osd.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../bsp/display/dvi_osd.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../bsp/display/font5x7.c)
+target_include_directories(test_dvi_osd PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../bsp
+    ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME dvi_osd COMMAND test_dvi_osd)
+
+# --- App store (FWSA framing + catalog parse) ---
+set(STORE_UART ${CMAKE_CURRENT_SOURCE_DIR}/../../store_uart)
+add_executable(test_store_uart
+    test_store_uart.c
+    ${STORE_UART}/store_uart_crc32.c
+    ${STORE_UART}/store_uart_frame.c
+    ${STORE_UART}/store_sha256.c)
+target_include_directories(test_store_uart PRIVATE
+    ${STORE_UART}/include
+    ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME store_uart COMMAND test_store_uart)
+
+add_executable(test_catalog_parse
+    test_catalog_parse.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../apps/store_receiver/catalog_parse.c
+    ${STORE_UART}/store_uart_crc32.c
+    ${STORE_UART}/store_uart_frame.c
+    ${STORE_UART}/store_sha256.c)
+target_include_directories(test_catalog_parse PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../apps/store_receiver
+    ${STORE_UART}/include
+    ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME catalog_parse COMMAND test_catalog_parse)
+
+add_executable(test_response_store
+    test_response_store.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../apps/http_viewer/response_store.c)
+target_include_directories(test_response_store PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../apps/http_viewer
+    ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME response_store COMMAND test_response_store)
+
+add_executable(test_uf2_reader
+    test_uf2_reader.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../services/app_loader/uf2_reader.c)
+target_include_directories(test_uf2_reader PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../services/app_loader
+    ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME uf2_reader COMMAND test_uf2_reader)
