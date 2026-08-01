@@ -7,7 +7,7 @@ Install once on a PC that will run OpenMicro and talk to FreeWili 2.
 | Requirement | Notes |
 |---|---|
 | Node.js ≥ 22 | Host + launcher |
-| Python 3 | `py -3` for wilibsp `fw.py` |
+| Python 3 | Windows `py -3`, or `python3`/`python` on PATH |
 | Pico SDK / OpenOCD | Same install `wilibsp` already uses (`~/.pico-sdk` or PATH) |
 | Claude and/or Codex CLI | On `PATH`; OpenMicro wraps one of them |
 | FreeWili 2 + USB CMSIS-DAP | Display flash + RTT |
@@ -16,11 +16,14 @@ Install once on a PC that will run OpenMicro and talk to FreeWili 2.
 ## Install the PC host
 
 ```powershell
-cd "C:\repos\free wili 2\openmicro-freewili"
+cd <path-to-your-clone>
 npm run setup
 ```
 
 That runs `npm install` and `npm run build` inside `host/`.
+
+No sibling source repositories are required. Optional app-store examples in
+the vendored BSP are skipped when their separate sources are absent.
 
 ## Flash the display app (once, or after UI changes)
 

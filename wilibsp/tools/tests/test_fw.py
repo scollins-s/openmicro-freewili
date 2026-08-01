@@ -26,9 +26,10 @@ def test_new_app_rejects_existing(tmp_path):
         pass
 
 def test_build_command_uses_target_preset():
-    cmd = fw.build_command("hello_display")
-    assert cmd[:3] == ["cmake", "--build", "--preset"]
-    assert "target" in cmd
+    configure, build = fw.build_command("hello_display")
+    assert configure[:3] == ["cmake", "--preset", "target"]
+    assert build[:3] == ["cmake", "--build", "--preset"]
+    assert build[-2:] == ["--target", "hello_display"]
 
 def test_test_command_configures_and_runs_ctest():
     cmds = fw.test_command()

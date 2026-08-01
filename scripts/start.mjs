@@ -159,7 +159,9 @@ print(json.dumps(fw.rtt_command(iface)))
   return await new Promise((resolve, reject) => {
     const chunks = []
     const errChunks = []
-    const p = spawn('py', ['-3', '-c', helper], {
+    const python = process.platform === 'win32' ? 'py' : 'python3'
+    const pythonArgs = process.platform === 'win32' ? ['-3'] : []
+    const p = spawn(python, [...pythonArgs, '-c', helper], {
       cwd: WILIBSP,
       windowsHide: true,
     })

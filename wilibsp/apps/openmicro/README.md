@@ -27,13 +27,10 @@ you want FwGUI/OneWili.
 | Linked | FwGUI up | Taps send `a\om\*` wires + log `OMTX …` on RTT |
 | Standby | 30 s no input | Backlight off, LEDs blank, ~80 ms poll; tap/button wakes |
 
-**Board → Claude:** keep OpenMicro `--freewili` running, then `fw rtt` +
-`npm run bridge:rtt` in `demo_inspo/OpenMicro` (see FREEWILI.md).
+**Board → Claude:** from the repository root, run `npm start`. It launches the
+included OpenMicro host, OpenOCD RTT server, and RTT-to-TCP bridge.
 
-Proposed OneWili paths:
-[`docs/openmicro-freewili/ONEWILI-OPENMICRO-COMMANDS.md`](../../../../docs/openmicro-freewili/ONEWILI-OPENMICRO-COMMANDS.md).
-
-PC host: `openmicro --freewili --no-hid` (see `demo_inspo/OpenMicro/FREEWILI.md`).
+PC host details: [`../../host/FREEWILI.md`](../../host/FREEWILI.md).
 
 ## Power / performance
 

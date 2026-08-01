@@ -4,9 +4,8 @@ Drive OpenMicro’s agent host from a FreeWili 2 touchscreen instead of (or
 alongside) a DualSense. The PC still owns Claude/Codex; the device sends
 high-level **actions** and renders **feedback**.
 
-**This file lives inside the kit copy.** Prefer the kit root:
-[`../README.md`](../README.md) (`npm start`). Repo docs index:
-[`../../docs/openmicro-freewili/README.md`](../../docs/openmicro-freewili/README.md).
+Prefer the repository root [`../README.md`](../README.md) and `npm start` for
+the portable one-terminal demo.
 
 ## Board taps → Claude (works today)
 
@@ -14,17 +13,17 @@ Stock main firmware does **not** relay display `a\om\*` wires to USB. Use the
 **RTT bridge** so display taps reach OpenMicro over the debug probe:
 
 ```powershell
-# Terminal A — host
-cd "C:\repos\free wili 2\demo_inspo\OpenMicro"
+# Terminal A — host (from repository root)
+cd host
 node dist\cli.js --freewili --no-hid claude
 
 # Terminal B — RTT server (display CMSIS-DAP interface 0)
-cd "C:\repos\free wili 2\device stuff\wilibsp"
-fw flash openmicro
-fw rtt
+cd wilibsp
+py -3 tools\fw.py flash openmicro
+py -3 tools\fw.py rtt
 
 # Terminal C — bridge
-cd "C:\repos\free wili 2\demo_inspo\OpenMicro"
+cd host
 npm run bridge:rtt
 ```
 
@@ -60,8 +59,8 @@ npm run monitor:com -- --list
 
 ## Long-term: main OpenMicro peer
 
-Link [`device stuff/main-openmicro-peer`](../../device%20stuff/main-openmicro-peer)
-into custom main firmware so CDC carries JSON without the debug probe. Then:
+Link the repository's [`peer/`](../peer/) sources into custom main firmware so
+CDC carries JSON without the debug probe. Then:
 
 ```text
 node dist/cli.js --freewili --freewili-serial COMx --no-hid claude
@@ -72,8 +71,7 @@ node dist/cli.js --freewili --freewili-serial COMx --no-hid claude
 Line-delimited JSON (`src/freewili/protocol.ts`). Device → host: `hello`,
 `action`, `ping`. Host → device: `hello`, `feedback`, `config`, `pong`.
 
-Display wires: [`docs/openmicro-freewili/ONEWILI-OPENMICRO-COMMANDS.md`](../../docs/openmicro-freewili/ONEWILI-OPENMICRO-COMMANDS.md).
-Firmware UI: `device stuff/wilibsp/apps/openmicro/`.
+Firmware UI source: [`../firmware/openmicro`](../firmware/openmicro/).
 
 ```
 Touch UI --OMTX/RTT--> bridge:rtt --TCP JSON--> OpenMicro --> Claude

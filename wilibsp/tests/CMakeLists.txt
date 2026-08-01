@@ -188,27 +188,31 @@ add_test(NAME dvi_osd COMMAND test_dvi_osd)
 
 # --- App store (FWSA framing + catalog parse) ---
 set(STORE_UART ${CMAKE_CURRENT_SOURCE_DIR}/../../store_uart)
-add_executable(test_store_uart
-    test_store_uart.c
-    ${STORE_UART}/store_uart_crc32.c
-    ${STORE_UART}/store_uart_frame.c
-    ${STORE_UART}/store_sha256.c)
-target_include_directories(test_store_uart PRIVATE
-    ${STORE_UART}/include
-    ${CMAKE_CURRENT_SOURCE_DIR})
-add_test(NAME store_uart COMMAND test_store_uart)
+if(EXISTS "${STORE_UART}/include/store_uart_proto.h")
+    add_executable(test_store_uart
+        test_store_uart.c
+        ${STORE_UART}/store_uart_crc32.c
+        ${STORE_UART}/store_uart_frame.c
+        ${STORE_UART}/store_sha256.c)
+    target_include_directories(test_store_uart PRIVATE
+        ${STORE_UART}/include
+        ${CMAKE_CURRENT_SOURCE_DIR})
+    add_test(NAME store_uart COMMAND test_store_uart)
 
-add_executable(test_catalog_parse
-    test_catalog_parse.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../apps/store_receiver/catalog_parse.c
-    ${STORE_UART}/store_uart_crc32.c
-    ${STORE_UART}/store_uart_frame.c
-    ${STORE_UART}/store_sha256.c)
-target_include_directories(test_catalog_parse PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../apps/store_receiver
-    ${STORE_UART}/include
-    ${CMAKE_CURRENT_SOURCE_DIR})
-add_test(NAME catalog_parse COMMAND test_catalog_parse)
+    add_executable(test_catalog_parse
+        test_catalog_parse.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/../apps/store_receiver/catalog_parse.c
+        ${STORE_UART}/store_uart_crc32.c
+        ${STORE_UART}/store_uart_frame.c
+        ${STORE_UART}/store_sha256.c)
+    target_include_directories(test_catalog_parse PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../apps/store_receiver
+        ${STORE_UART}/include
+        ${CMAKE_CURRENT_SOURCE_DIR})
+    add_test(NAME catalog_parse COMMAND test_catalog_parse)
+else()
+    message(STATUS "Skipping store_uart tests (optional store_uart sources not found)")
+endif()
 
 add_executable(test_response_store
     test_response_store.c

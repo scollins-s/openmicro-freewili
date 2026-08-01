@@ -20,6 +20,18 @@ $FwPy = Join-Path $Wilibsp "tools\fw.py"
 $KitFirmware = Join-Path $KitRoot "firmware\openmicro"
 $WilibspApp = Join-Path $Wilibsp "apps\openmicro"
 
+$Py = Get-Command py -ErrorAction SilentlyContinue
+if ($Py) {
+  $PythonExe = $Py.Source
+  $PythonPrefix = @("-3")
+} else {
+  $Python = Get-Command python3 -ErrorAction SilentlyContinue
+  if (-not $Python) { $Python = Get-Command python -ErrorAction SilentlyContinue }
+  if (-not $Python) { Write-Error "Python 3 was not found on PATH" }
+  $PythonExe = $Python.Source
+  $PythonPrefix = @()
+}
+
 if (-not (Test-Path $FwPy)) {
   Write-Error "wilibsp fw.py not found at $FwPy"
 }
@@ -43,7 +55,7 @@ function Sync-Firmware {
 Sync-Firmware
 if ($SyncOnly) { exit 0 }
 
-$fwArgs = @("-3", $FwPy)
+$fwArgs = $PythonPrefix + @($FwPy)
 if ($BuildOnly) {
   $fwArgs += @("build", "openmicro")
   Write-Host "Building openmicro via wilibsp…"
@@ -57,7 +69,7 @@ if ($BuildOnly) {
 
 Push-Location $Wilibsp
 try {
-  & py @fwArgs
+  & $PythonExe @fwArgs
   if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
   }

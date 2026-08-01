@@ -1,7 +1,8 @@
 # OpenMicro FreeWili kit
 
-One-folder setup for driving **OpenMicro** (Claude/Codex on the PC) from a
-**FreeWili 2** touchscreen.
+Portable, one-folder setup for driving **OpenMicro** (Claude/Codex on the PC)
+from a **FreeWili 2** touchscreen. The display BSP, button/haptic drivers,
+OneWili transport, host, and launcher are included in this checkout.
 
 The original multi-folder layout is unchanged — see
 [`docs/openmicro-freewili/README.md`](../docs/openmicro-freewili/README.md).
@@ -23,7 +24,7 @@ Details: [docs/CAPABILITIES.md](docs/CAPABILITIES.md).
 
 ```text
 openmicro-freewili/
-  host/                 OpenMicro PC host (copy of demo_inspo/OpenMicro)
+  host/                 OpenMicro PC host
   firmware/openmicro/   Canonical display app sources
   wilibsp/              Vendored FreeWili 2 display BSP and build tools
   onewili/              Vendored OneWili FwGUI transport library
@@ -35,11 +36,12 @@ openmicro-freewili/
 
 ## Quick start
 
-**Prereqs:** Node.js ≥ 22, Python 3 (`py`), Pico SDK / OpenOCD, Claude or
-Codex CLI on `PATH`, FreeWili 2 + CMSIS-DAP.
+**Prereqs:** Node.js ≥ 22, Python 3, CMake, Ninja, Pico SDK 2.x with an ARM GCC
+toolchain, Claude or Codex CLI on `PATH`, and FreeWili 2 + CMSIS-DAP. The Pico
+VS Code extension installation under `~/.pico-sdk` is detected automatically.
 
 ```powershell
-cd "C:\repos\free wili 2\openmicro-freewili"
+cd <path-to-your-clone>
 npm run setup
 npm run flash:display          # once — probe connected, display CPU
 npm start                      # ONE terminal: OpenOCD + host + bridge
@@ -55,6 +57,30 @@ npm run freewili:sim
 ```
 
 More: [docs/KIT-SETUP.md](docs/KIT-SETUP.md) · [docs/RUN.md](docs/RUN.md).
+
+## Demo portability
+
+The demo does not require sibling repositories or absolute source paths. Clone
+or copy the entire repository to any location, then run `npm run setup` and
+`npm run flash:display`. Generated firmware builds stay under
+`wilibsp/build/` and are not committed.
+
+The following remain machine prerequisites rather than vendored files:
+
+- Node.js 22 or newer and Python 3.
+- Pico SDK 2.x, ARM GCC, CMake, Ninja, and OpenOCD. A Raspberry Pi Pico VS Code
+  extension install under `~/.pico-sdk` is discovered automatically.
+- A Claude or Codex CLI on `PATH` for the interactive agent.
+- A connected FreeWili 2 CMSIS-DAP probe for flashing and the RTT demo.
+
+The one-command flash wrapper is tested on Windows PowerShell. On macOS/Linux,
+use `python3 wilibsp/tools/fw.py build openmicro` and `flash openmicro`, or run
+the PowerShell wrapper with PowerShell 7 (`pwsh`).
+
+The vendored BSP contains other experimental applications. App-store targets
+and tests are automatically skipped unless their optional `store_uart` and
+`app-store-online` sibling sources are present; OpenMicro does not require
+either dependency.
 
 ## Commands
 
@@ -80,30 +106,29 @@ npm start -- --sim
 
 | Path | Role |
 |---|---|
-| `demo_inspo/OpenMicro/` | Original PC host (still valid) |
 | `wilibsp/apps/openmicro/` | Synchronized build copy for display firmware |
-| `device stuff/main-openmicro-peer/` | Original main peer sources |
-| **`openmicro-freewili/`** | This kit — copies + one-command run |
+| `peer/` | Optional/future main-CPU CDC bridge sources |
+| Repository root | Portable demo launcher and documentation |
 
 Firmware builds through the vendored Pico BSP. Edit `firmware/openmicro`; the
 build/flash wrapper synchronizes it into `wilibsp/apps/openmicro` automatically.
 
-## Legacy three-terminal flow
+## Manual three-terminal flow
 
-If you prefer the original paths without this kit:
+All paths below are inside this checkout:
 
 ```powershell
 # A — host
-cd "C:\repos\free wili 2\demo_inspo\OpenMicro"
+cd host
 node dist\cli.js --freewili --no-hid claude
 
 # B — RTT
-cd "C:\repos\free wili 2\device stuff\wilibsp"
-fw flash openmicro
-fw rtt
+cd wilibsp
+py -3 tools\fw.py flash openmicro
+py -3 tools\fw.py rtt
 
 # C — bridge
-cd "C:\repos\free wili 2\demo_inspo\OpenMicro"
+cd host
 npm run bridge:rtt
 ```
 

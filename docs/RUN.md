@@ -5,7 +5,7 @@
 After [KIT-SETUP.md](KIT-SETUP.md):
 
 ```powershell
-cd "C:\repos\free wili 2\openmicro-freewili"
+cd <path-to-your-clone>
 npm start
 ```
 
@@ -42,15 +42,15 @@ Useful for debugging one piece at a time:
 
 ```powershell
 # Terminal A
-cd "C:\repos\free wili 2\openmicro-freewili\host"
+cd host
 node dist\cli.js --freewili --no-hid claude
 
 # Terminal B
-cd "C:\repos\free wili 2\device stuff\wilibsp"
+cd wilibsp
 py -3 tools\fw.py rtt
 
 # Terminal C
-cd "C:\repos\free wili 2\openmicro-freewili\host"
+cd host
 npm run bridge:rtt
 ```
 

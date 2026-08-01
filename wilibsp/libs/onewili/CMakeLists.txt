@@ -1,9 +1,7 @@
 # OneWili C API for WiliBSP (FreeWili 2 display CPU, RP2350B).
 #
-# This directory is a thin CMake shim. The generated sources live in the sibling
-# tree `device stuff/onewili/` (or freewili-firmware/.../onewili/wilibsp when
-# regenerating). Re-copy sources into this folder if you need an in-tree vendored
-# copy; until then we build from the sibling path so toggleled links.
+# This directory is a thin CMake shim. In the portable OpenMicro demo, the
+# generated sources are vendored at the demo repository root in `onewili/`.
 cmake_minimum_required(VERSION 3.20)
 
 set(ONEWILI_SRC_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../../onewili")
