@@ -86,6 +86,7 @@ const actionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('push_to_talk') }),
   z.object({ type: z.literal('new_chat') }),
   z.object({ type: z.literal('open_model') }),
+  z.object({ type: z.literal('resume_session') }),
   z.object({ type: z.literal('thinking_depth'), delta: z.union([z.literal(1), z.literal(-1)]) }),
   z.object({ type: z.literal('workflow'), presetId: z.string() }),
   z.object({ type: z.literal('prompt'), text: z.string() }),

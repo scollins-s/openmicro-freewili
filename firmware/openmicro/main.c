@@ -25,6 +25,7 @@ static bool hit_wants_haptic(om_hit_t hit) {
         case OM_HIT_VOICE:
         case OM_HIT_NEW:
         case OM_HIT_MODEL:
+        case OM_HIT_RESUME:
         case OM_HIT_WF_REVIEW:
         case OM_HIT_WF_DEBUG:
         case OM_HIT_WF_REFACTOR:
@@ -52,6 +53,9 @@ static void handle_hit(om_hit_t hit, om_ui_state_t *st) {
             break;
         case OM_HIT_NEW:
             om_link_send_action("new_chat");
+            break;
+        case OM_HIT_RESUME:
+            om_link_send_action("resume");
             break;
         case OM_HIT_WF_REVIEW:
             om_link_send_workflow("review-pr");

@@ -41,12 +41,15 @@ function normalizeType(raw: string): string {
   return raw.trim().replace(/-/g, '_')
 }
 
-function parseAction(actionType: string, opts: {
-  preset?: string
-  text?: string
-  index?: number
-  delta?: 1 | -1
-}): Action {
+function parseAction(
+  actionType: string,
+  opts: {
+    preset?: string
+    text?: string
+    index?: number
+    delta?: 1 | -1
+  },
+): Action {
   // Allow full JSON: --action '{"type":"prompt","text":"hi"}'
   if (actionType.startsWith('{')) {
     const parsed = JSON.parse(actionType) as Action
@@ -62,6 +65,7 @@ function parseAction(actionType: string, opts: {
     case 'reject':
     case 'new_chat':
     case 'open_model':
+    case 'resume_session':
     case 'push_to_talk':
     case 'herdr_space':
       return { type: t }
@@ -89,6 +93,7 @@ function parseAction(actionType: string, opts: {
         left: '\x1b[D',
       }
       if (name === 'model' || name === '/model') return { type: 'open_model' }
+      if (name === 'resume' || name === '/resume') return { type: 'resume_session' }
       return { type: 'keys', bytes: arrows[name] ?? name }
     }
     default:

@@ -69,12 +69,14 @@ export function wireToAction(wire: string): Action | null {
         name === 'new_chat' ||
         name === 'push_to_talk' ||
         name === 'herdr_space' ||
-        name === 'open_model'
+        name === 'open_model' ||
+        name === 'resume_session'
       ) {
         return { type: name }
       }
       // FreeWili firmware sends a\om\a model
       if (name === 'model') return { type: 'open_model' }
+      if (name === 'resume') return { type: 'resume_session' }
       return null // ping / unknown
     }
     case 'w':
@@ -206,8 +208,7 @@ async function main(): Promise<void> {
   rtt.on('error', (err) => console.error('RTT error', err))
 }
 
-const isMain =
-  !!process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])
+const isMain = !!process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])
 
 if (isMain) {
   main().catch((err) => {

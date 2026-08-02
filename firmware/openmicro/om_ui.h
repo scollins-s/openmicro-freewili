@@ -30,6 +30,7 @@ typedef enum {
     OM_HIT_VOICE,
     OM_HIT_NEW,
     OM_HIT_MODEL,
+    OM_HIT_RESUME,
     OM_HIT_WF_REVIEW,
     OM_HIT_WF_DEBUG,
     OM_HIT_WF_REFACTOR,

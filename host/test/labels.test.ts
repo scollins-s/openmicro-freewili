@@ -33,6 +33,7 @@ describe('actionLabel', () => {
     expect(actionLabel({ type: 'push_to_talk' })).toBe('push-to-talk')
     expect(actionLabel({ type: 'new_chat' })).toBe('new chat')
     expect(actionLabel({ type: 'open_model' })).toBe('open model')
+    expect(actionLabel({ type: 'resume_session' })).toBe('resume session')
     expect(actionLabel({ type: 'herdr_space' })).toBe('cycle herdr space')
   })
 

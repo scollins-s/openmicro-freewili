@@ -121,6 +121,12 @@ describe('dispatchAction', () => {
     expect(writes).toEqual(['\x01\x0b\x15', '/model\r'])
   })
 
+  it('clears then sends /resume for resume_session', () => {
+    const { deps, writes } = makeDeps()
+    dispatchAction({ type: 'resume_session' }, deps)
+    expect(writes).toEqual(['\x01\x0b\x15', '/resume\r'])
+  })
+
   it('clears then sends /new for Codex new_chat', () => {
     const { deps, writes } = makeDeps({ harness: codexHarness })
     dispatchAction({ type: 'new_chat' }, deps)

@@ -9,6 +9,7 @@ describe('wireToAction', () => {
     expect(wireToAction('a\\om\\a push_to_talk')).toEqual({ type: 'push_to_talk' })
     expect(wireToAction('a\\om\\a model')).toEqual({ type: 'open_model' })
     expect(wireToAction('a\\om\\a open_model')).toEqual({ type: 'open_model' })
+    expect(wireToAction('a\\om\\a resume')).toEqual({ type: 'resume_session' })
   })
 
   it('parses workflow focus thinking layer keys', () => {

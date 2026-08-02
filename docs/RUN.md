@@ -15,24 +15,30 @@ The launcher starts three child processes in **one** window:
 2. OpenMicro host: `--freewili --no-hid claude`
 3. RTT → TCP bridge (`host/scripts/rtt-bridge.ts`)
 
-Logs from OpenOCD and the bridge are prefixed `[openocd]` / `[bridge]`. The
-OpenMicro host uses the terminal directly (so Claude/Codex UI works). Stop with
-**Ctrl+C** (or `npm run stop` if something was left running).
+The OpenMicro host owns the terminal, so normal startup shows only the
+Claude/Codex UI. Add `--show-rtt` to show prefixed OpenOCD and bridge diagnostics.
+Stop with **Ctrl+C** (or `npm run stop` if something was left running).
 
 ### Useful flags
 
 ```powershell
 npm start -- --agent codex
+npm start -- --cwd C:\work\another-project # agent starts here
+npm start -- --show-rtt             # infrastructure and action logs
 npm start -- --iface 1              # CMSIS-DAP interface
 npm start -- --no-rtt               # host only (you run OpenOCD or use CDC)
 npm start -- --skip-bridge          # OpenOCD + host, no bridge
 npm run freewili:sim                # host + device:sim, no probe
 ```
 
+`--project` is an alias for `--cwd`. `OPENMICRO_CWD` supplies the default when
+neither flag is present. Relative paths are resolved from the directory where
+you invoke `npm start`.
+
 ### Expected signal path
 
 1. Flash display once (`npm run flash:display`).
-2. `npm start` — wait until you see RTT ready and FreeWili TCP ready.
+2. `npm start` — wait for the agent UI (`--show-rtt` displays readiness logs).
 3. Tap **Accept** on the FreeWili.
 4. `[bridge] OMTX → { type: 'accept' }` and host `freewili → accept`.
 

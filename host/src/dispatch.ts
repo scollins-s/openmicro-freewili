@@ -95,7 +95,8 @@ export function dispatchAction(action: Action, deps: DispatchDeps): void {
       return
     }
     case 'new_chat':
-    case 'open_model': {
+    case 'open_model':
+    case 'resume_session': {
       const resolved = deps.harness.resolveAction(action, {
         thinkingLevel: deps.getThinkingLevel(),
       })

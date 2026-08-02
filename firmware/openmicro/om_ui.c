@@ -48,9 +48,10 @@ typedef struct { int x, y, w, h; } rect_t;
 
 static const rect_t R_ACCEPT = { 12,  44, 220, 58 };
 static const rect_t R_REJECT = { 248, 44, 220, 58 };
-static const rect_t R_VOICE  = { 12,  110, 148, 58 };
-static const rect_t R_MODEL  = { 166, 110, 148, 58 };
-static const rect_t R_NEW    = { 320, 110, 148, 58 };
+static const rect_t R_VOICE  = { 12,  110, 107, 58 };
+static const rect_t R_MODEL  = { 125, 110, 107, 58 };
+static const rect_t R_NEW    = { 238, 110, 107, 58 };
+static const rect_t R_RESUME = { 351, 110, 117, 58 };
 
 static const rect_t R_WF[4] = {
     { 12, 178, 110, 36 },
@@ -113,6 +114,7 @@ void om_ui_draw(const om_ui_state_t *st) {
     draw_btn(&R_VOICE,  COL_BTN2, "VOICE");
     draw_btn(&R_MODEL,  COL_CYAN, "MODEL");
     draw_btn(&R_NEW,    COL_BTN, "NEW");
+    draw_btn(&R_RESUME, COL_BTN2, "RESUME");
 
     static const char *wf[] = { "REVIEW", "DEBUG", "REFACTOR", "TESTS" };
     for (int i = 0; i < 4; i++) draw_btn(&R_WF[i], COL_BTN, wf[i]);
@@ -151,6 +153,7 @@ om_hit_t om_ui_hit(uint16_t x, uint16_t y) {
     if (inside(&R_VOICE, x, y))  return OM_HIT_VOICE;
     if (inside(&R_MODEL, x, y))  return OM_HIT_MODEL;
     if (inside(&R_NEW, x, y))    return OM_HIT_NEW;
+    if (inside(&R_RESUME, x, y)) return OM_HIT_RESUME;
     if (inside(&R_WF[0], x, y))  return OM_HIT_WF_REVIEW;
     if (inside(&R_WF[1], x, y))  return OM_HIT_WF_DEBUG;
     if (inside(&R_WF[2], x, y))  return OM_HIT_WF_REFACTOR;

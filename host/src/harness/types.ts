@@ -12,6 +12,7 @@ export type Action =
   | { type: 'push_to_talk'; pressed?: boolean } // pressed set by the cli for GUI hold-to-talk (true = button down, false = up); absent for pty toggle harnesses
   | { type: 'new_chat' }
   | { type: 'open_model' } // open the agent model picker (/model); composer cleared first like new_chat
+  | { type: 'resume_session' } // open the agent's previous-session picker (/resume)
   | { type: 'thinking_depth'; delta: 1 | -1 }
   | { type: 'workflow'; presetId: string } // core resolves presetId → text via config, then calls resolveAction({type:'prompt', text})
   | { type: 'prompt'; text: string }

@@ -56,6 +56,8 @@ export const codexHarness: Harness = {
       case 'open_model':
         // Codex CLI also uses /model for the picker; staged clear in dispatch.
         return { bytes: '/model\r' }
+      case 'resume_session':
+        return { bytes: '/resume\r' }
       case 'prompt':
         return { bytes: action.text + '\r' }
       case 'keys':

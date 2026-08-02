@@ -70,6 +70,8 @@ export const claudeHarness: Harness = {
       case 'open_model':
         // Same staged clear as new_chat — then open the model picker.
         return { bytes: '/model\r' }
+      case 'resume_session':
+        return { bytes: '/resume\r' }
       case 'thinking_depth': {
         const next = Math.max(
           0,

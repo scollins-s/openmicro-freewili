@@ -64,6 +64,9 @@ describe('claude harness', () => {
     expect(claudeHarness.resolveAction({ type: 'push_to_talk' }, ctx)).toEqual({ bytes: ' ' })
     expect(claudeHarness.resolveAction({ type: 'new_chat' }, ctx)).toEqual({ bytes: '/clear\r' })
     expect(claudeHarness.resolveAction({ type: 'open_model' }, ctx)).toEqual({ bytes: '/model\r' })
+    expect(claudeHarness.resolveAction({ type: 'resume_session' }, ctx)).toEqual({
+      bytes: '/resume\r',
+    })
     expect(claudeHarness.resolveAction({ type: 'prompt', text: 'hi' }, ctx)).toEqual({
       bytes: 'hi\r',
     })
@@ -119,6 +122,9 @@ describe('codex harness', () => {
     expect(codexHarness.resolveAction({ type: 'accept' }, ctx)).toEqual({ bytes: '\r' })
     expect(codexHarness.resolveAction({ type: 'reject' }, ctx)).toEqual({ bytes: '\x1b' })
     expect(codexHarness.resolveAction({ type: 'new_chat' }, ctx)).toEqual({ bytes: '/new\r' })
+    expect(codexHarness.resolveAction({ type: 'resume_session' }, ctx)).toEqual({
+      bytes: '/resume\r',
+    })
     expect(codexHarness.resolveAction({ type: 'prompt', text: 'hi' }, ctx)).toEqual({
       bytes: 'hi\r',
     })

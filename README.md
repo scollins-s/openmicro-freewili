@@ -47,8 +47,9 @@ npm run flash:display          # once — probe connected, display CPU
 npm start                      # ONE terminal: OpenOCD + host + bridge
 ```
 
-Tap **Accept** on the device. You should see `[bridge] OMTX → …` and the host
-log `freewili → accept`.
+Tap **Accept** on the device to send Enter to the visible agent. Normal startup
+keeps OpenOCD/RTT diagnostics out of the agent UI; add `--show-rtt` when you
+want to inspect the bridge traffic.
 
 No hardware:
 
@@ -97,10 +98,29 @@ Launcher flags (after `--`):
 
 ```powershell
 npm start -- --agent codex
+npm start -- --cwd C:\work\another-project
+npm start -- --show-rtt       # show OpenOCD + RTT bridge diagnostics
 npm start -- --iface 1
 npm start -- --no-rtt          # host only
 npm start -- --sim
 ```
+
+`--cwd` (also `--project`) selects the coding agent's working directory; it
+does not need to be inside this checkout. Set `OPENMICRO_CWD` to make that
+directory the default for `npm start`.
+
+### Display session and command buttons
+
+- **S1–S5** select one of the five currently tracked OpenMicro sessions. The
+  selected session receives Accept, Reject, prompts, arrows, and slash-command
+  actions. A dim slot has no tracked session, and tapping it has no host target.
+- **NEW** clears the current conversation (`/clear` in Claude, `/new` in Codex).
+- **MODEL** clears the composer and opens `/model`.
+- **RESUME** clears the composer and opens `/resume`, where the agent can select
+  a previous session.
+
+There is no S6 button in the current firmware/protocol UI; the six numbered
+items are the configurable layers (`L1`–`L6`), while session slots are S1–S5.
 
 ## Relation to the rest of the repo
 

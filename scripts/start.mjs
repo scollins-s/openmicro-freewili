@@ -11,6 +11,8 @@
  *   node scripts/start.mjs
  *   node scripts/start.mjs --sim
  *   node scripts/start.mjs --agent codex
+ *   node scripts/start.mjs --cwd ../my-project
+ *   node scripts/start.mjs --show-rtt       # show infrastructure / RTT diagnostics
  *   node scripts/start.mjs --no-rtt          # host only (manual OpenOCD / CDC)
  *   node scripts/start.mjs --skip-bridge     # OpenOCD + host only
  *   node scripts/start.mjs --iface 1
@@ -20,7 +22,7 @@ import { spawn } from 'node:child_process'
 import net from 'node:net'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { existsSync } from 'node:fs'
+import { existsSync, statSync } from 'node:fs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const KIT_ROOT = path.resolve(__dirname, '..')
@@ -42,6 +44,8 @@ function parseArgs(argv) {
     skipBridge: false,
     agent: 'claude',
     iface: null,
+    cwd: process.env.OPENMICRO_CWD || null,
+    showRtt: false,
     agentArgs: [],
     help: false,
   }
@@ -51,6 +55,10 @@ function parseArgs(argv) {
     else if (a === '--sim') opts.sim = true
     else if (a === '--no-rtt') opts.noRtt = true
     else if (a === '--skip-bridge') opts.skipBridge = true
+    else if (a === '--show-rtt') opts.showRtt = true
+    else if (a === '--cwd' || a === '--project') opts.cwd = argv[++i]
+    else if (a.startsWith('--cwd=')) opts.cwd = a.slice('--cwd='.length)
+    else if (a.startsWith('--project=')) opts.cwd = a.slice('--project='.length)
     else if (a === '--agent') opts.agent = argv[++i] || 'claude'
     else if (a.startsWith('--agent=')) opts.agent = a.slice('--agent='.length) || 'claude'
     else if (a === '--iface') opts.iface = argv[++i]
@@ -72,6 +80,8 @@ Usage:
   npm start
   npm start -- --sim
   npm start -- --agent codex
+  npm start -- --cwd C:\\work\\my-project
+  npm start -- --show-rtt        # show OpenOCD and bridge diagnostics
   npm start -- --iface 1
   npm start -- --no-rtt          # host only (you run OpenOCD / use CDC yourself)
   npm run freewili:sim
@@ -103,10 +113,14 @@ function spawnLogged(prefix, command, args, options = {}) {
   children.push({ prefix, child })
   if (!inheritAll) {
     if (child.stdout) {
-      child.stdout.on('data', (c) => log(prefix, c, process.stdout))
+      child.stdout.on('data', (c) => {
+        if (!options.quiet) log(prefix, c, process.stdout)
+      })
     }
     if (child.stderr) {
-      child.stderr.on('data', (c) => log(prefix, c, process.stderr))
+      child.stderr.on('data', (c) => {
+        if (!options.quiet) log(prefix, c, process.stderr)
+      })
     }
   }
   child.on('exit', (code, signal) => {
@@ -231,18 +245,28 @@ async function main() {
 
   ensureHostBuilt()
 
+  const agentCwd = path.resolve(process.cwd(), opts.cwd || '.')
+  if (!existsSync(agentCwd) || !statSync(agentCwd).isDirectory()) {
+    throw new Error(`Agent working directory does not exist: ${agentCwd}`)
+  }
+
+  // npm prints its lifecycle banner before this script starts. Clear it once so
+  // normal startup hands the terminal over looking exactly like the agent UI.
+  // Diagnostic mode deliberately preserves the scrollback.
+  if (!opts.showRtt && process.stdout.isTTY) process.stdout.write('\x1b[2J\x1b[H')
+
   process.on('SIGINT', () => void shutdown(0))
   process.on('SIGTERM', () => void shutdown(0))
 
   if (opts.sim) {
-    console.log('[kit] sim mode: OpenMicro host + device:sim (no OpenOCD)')
+    if (opts.showRtt) console.error('[kit] sim mode: OpenMicro host + device:sim (no OpenOCD)')
     const cli = ensureHostBuilt()
     // Host needs a real TTY for the wrapped agent UI — do not pipe its stdio.
     spawnLogged(
       'host',
       process.execPath,
       [cli, '--freewili', '--no-hid', opts.agent, ...opts.agentArgs],
-      { cwd: HOST_ROOT, stdio: 'inherit', fatal: true },
+      { cwd: agentCwd, stdio: 'inherit', fatal: true },
     )
     await waitForPort('127.0.0.1', OM_PORT, 20000)
     // Prefer tsx from host node_modules for device-sim
@@ -258,18 +282,17 @@ async function main() {
         shell: true,
       })
     }
-    console.log('[kit] running — Ctrl+C to stop')
     return
   }
 
   if (!opts.noRtt) {
-    console.log('[kit] starting OpenOCD RTT…')
+    if (opts.showRtt) console.error('[kit] starting OpenOCD RTT…')
     const argv = await resolveOpenOcdArgv(opts.iface)
     const [exe, ...args] = argv
-    spawnLogged('openocd', exe, args, { cwd: WILIBSP, fatal: true })
+    spawnLogged('openocd', exe, args, { cwd: WILIBSP, fatal: true, quiet: !opts.showRtt })
     try {
       await waitForPort(RTT_HOST, RTT_PORT, 45000)
-      console.log(`[kit] RTT ready on ${RTT_HOST}:${RTT_PORT}`)
+      if (opts.showRtt) console.error(`[kit] RTT ready on ${RTT_HOST}:${RTT_PORT}`)
     } catch (err) {
       console.error('[kit]', err.message)
       console.error('[kit] Is the CMSIS-DAP probe connected? Try --iface 1')
@@ -277,22 +300,22 @@ async function main() {
       return
     }
   } else {
-    console.log('[kit] --no-rtt: skipping OpenOCD (start fw rtt yourself, or use CDC)')
+    if (opts.showRtt) console.error('[kit] --no-rtt: skipping OpenOCD')
   }
 
   const cli = ensureHostBuilt()
-  console.log(`[kit] starting OpenMicro host (${opts.agent})…`)
+  if (opts.showRtt) console.error(`[kit] starting OpenMicro host (${opts.agent}) in ${agentCwd}…`)
   // Host needs a real TTY for the wrapped agent UI — do not pipe its stdio.
   spawnLogged(
     'host',
     process.execPath,
     [cli, '--freewili', '--no-hid', opts.agent, ...opts.agentArgs],
-    { cwd: HOST_ROOT, stdio: 'inherit', fatal: true },
+    { cwd: agentCwd, stdio: 'inherit', fatal: true },
   )
 
   try {
     await waitForPort('127.0.0.1', OM_PORT, 20000)
-    console.log(`[kit] FreeWili TCP ready on 127.0.0.1:${OM_PORT}`)
+    if (opts.showRtt) console.error(`[kit] FreeWili TCP ready on 127.0.0.1:${OM_PORT}`)
   } catch (err) {
     console.error('[kit]', err.message)
     await shutdown(1)
@@ -300,17 +323,23 @@ async function main() {
   }
 
   if (!opts.skipBridge && !opts.noRtt) {
-    console.log('[kit] starting RTT bridge…')
+    if (opts.showRtt) console.error('[kit] starting RTT bridge…')
     const tsxCli = path.join(HOST_ROOT, 'node_modules', 'tsx', 'dist', 'cli.mjs')
     const bridgeScript = path.join(HOST_ROOT, 'scripts', 'rtt-bridge.ts')
     if (existsSync(tsxCli)) {
-      spawnLogged('bridge', process.execPath, [tsxCli, bridgeScript], { cwd: HOST_ROOT })
+      spawnLogged('bridge', process.execPath, [tsxCli, bridgeScript], {
+        cwd: HOST_ROOT,
+        quiet: !opts.showRtt,
+      })
     } else {
-      spawnLogged('bridge', 'npm', ['run', 'bridge:rtt'], { cwd: HOST_ROOT, shell: true })
+      spawnLogged('bridge', 'npm', ['run', 'bridge:rtt'], {
+        cwd: HOST_ROOT,
+        shell: true,
+        quiet: !opts.showRtt,
+      })
     }
   }
 
-  console.log('[kit] all processes up — tap Accept on the FreeWili; Ctrl+C to stop')
 }
 
 main().catch(async (err) => {

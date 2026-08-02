@@ -131,6 +131,8 @@ export function actionLabel(action: Action): string {
       return 'new chat'
     case 'open_model':
       return 'open model'
+    case 'resume_session':
+      return 'resume session'
     case 'thinking_depth':
       return `thinking depth ${action.delta > 0 ? 'up' : 'down'}`
     case 'workflow':
