@@ -7,8 +7,15 @@
 #include "om_link.h"
 #include "om_leds.h"
 
-/* Idle → standby after this much inactivity (backlight off). */
-#define OM_IDLE_MS          30000u
+/*
+ * Idle → standby timeout. Disabled by default because some boards stop
+ * reporting touch/button edges after the backlight has been shut down and can
+ * only recover after a power cycle. A custom build may re-enable standby with
+ * -DOM_IDLE_MS=<milliseconds>.
+ */
+#ifndef OM_IDLE_MS
+#define OM_IDLE_MS          0u
+#endif
 /* Poll cadence while the UI is awake and recently used. */
 #define OM_POLL_ACTIVE_MS   16u
 /* Poll cadence after brief quiet (still awake, backlight on). */
@@ -196,7 +203,8 @@ int main(void) {
     ui.link_up = linked;
     ui.dirty = true;
 
-    DIAG("openmicro: up link=%d (idle standby %u ms)\n", linked ? 1 : 0, OM_IDLE_MS);
+    DIAG("openmicro: up link=%d (idle standby %s)\n", linked ? 1 : 0,
+         OM_IDLE_MS > 0 ? "enabled" : "disabled");
 
     absolute_time_t next_demo = make_timeout_time_ms(2500);
     absolute_time_t last_activity = get_absolute_time();
@@ -251,7 +259,7 @@ int main(void) {
         /* Host feedback / config may mark dirty while asleep — stay dark until wake. */
         if (activity) last_activity = get_absolute_time();
 
-        if (!asleep) {
+        if (!asleep && OM_IDLE_MS > 0) {
             int64_t idle_us = absolute_time_diff_us(last_activity, get_absolute_time());
             if (idle_us >= (int64_t)OM_IDLE_MS * 1000) {
                 enter_standby(&ui);
