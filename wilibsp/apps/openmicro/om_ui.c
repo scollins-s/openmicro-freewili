@@ -111,7 +111,7 @@ void om_ui_draw(const om_ui_state_t *st) {
     draw_btn(&R_ACCEPT, 0xE007 /* dark green swap */, "ACCEPT");
     draw_btn(&R_REJECT, COL_RED, "REJECT");
     draw_btn(&R_VOICE,  COL_BTN2, "VOICE");
-    draw_btn(&R_MODEL,  COL_CYAN, "MODEL");
+    draw_btn(&R_MODEL,  COL_BTN, "MODEL");
     draw_btn(&R_NEW,    COL_BTN, "NEW");
 
     static const char *wf[] = { "REVIEW", "DEBUG", "REFACTOR", "TESTS" };
